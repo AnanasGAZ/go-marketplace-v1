@@ -31,3 +31,18 @@ func (r *UserRepository) Create(ctx context.Context, name string) (model.User, e
 
 	return user, nil
 }
+
+func (r *UserRepository) GetByLogin(ctx context.Context, login string) (model.User, error) {
+	const query = `
+		SELECT id, login, password_hash
+		FROM public.users
+		WHERE lower(login) = lower($1)
+	`
+
+	var user model.User
+	if err := r.pool.QueryRow(ctx, query, login).Scan(&user.ID, &user.Login, &user.PasswordHash); err != nil {
+		return model.User{}, err
+	}
+
+	return user, nil
+}

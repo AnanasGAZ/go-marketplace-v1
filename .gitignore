@@ -2,3 +2,8 @@
 /README.md
 /v1.md
 /docs/
+
+# Локальные секреты и настройки окружения
+.env
+.env.*
+!.env.example

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"go_marketplace_v1/internal/config"
@@ -14,6 +15,7 @@ import (
 	"go_marketplace_v1/internal/service"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -23,7 +25,14 @@ func main() {
 }
 
 func run() error {
-	cfg := config.Load()
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("environment: не удалось загрузить .env: %w", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 
 	//context.Context — это объект, который Go-функции передают друг другу,
 	// чтобы сообщить: операцию пора остановить — например,
@@ -45,8 +54,15 @@ func run() error {
 	userService := service.NewUserService(userRepo)
 	userHandler := handler.NewUserHandler(userService)
 
+	authService, err := service.NewAuthService(userRepo, []byte(cfg.JWTSecret), cfg.JWTTokenTTL)
+	if err != nil {
+		return fmt.Errorf("auth: не удалось создать сервис авторизации: %w", err)
+	}
+	authHandler := handler.NewAuthHandler(authService)
+
 	mux := http.NewServeMux() //маршрутизатор
 	mux.HandleFunc("POST /api/v1/users", userHandler.Create)
+	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,
