@@ -32,6 +32,26 @@ func (r *UserRepository) Create(ctx context.Context, name string) (model.User, e
 	return user, nil
 }
 
+func (r *UserRepository) CreateWithCredentials(ctx context.Context, name, login, passwordHash string) (model.User, error) {
+	const query = `
+		INSERT INTO public.users (name, login, password_hash)
+		VALUES ($1, $2, $3)
+		RETURNING id, name, login, password_hash
+	`
+
+	var user model.User
+	if err := r.pool.QueryRow(ctx, query, name, login, passwordHash).Scan(
+		&user.ID,
+		&user.Name,
+		&user.Login,
+		&user.PasswordHash,
+	); err != nil {
+		return model.User{}, err
+	}
+
+	return user, nil
+}
+
 func (r *UserRepository) GetByLogin(ctx context.Context, login string) (model.User, error) {
 	const query = `
 		SELECT id, login, password_hash

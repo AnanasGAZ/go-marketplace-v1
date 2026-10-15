@@ -63,6 +63,7 @@ func run() error {
 	mux := http.NewServeMux() //маршрутизатор
 	mux.HandleFunc("POST /api/v1/users", userHandler.Create)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"go_marketplace_v1/internal/model"
 	"go_marketplace_v1/internal/service"
 )
 
@@ -23,6 +24,31 @@ type loginRequest struct {
 type loginResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
+}
+
+type registerRequest struct {
+	Name     string `json:"name"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type registerResponse struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Login string `json:"login"`
+}
+
+func registrationToResponse(user model.User) registerResponse {
+	login := ""
+	if user.Login != nil {
+		login = *user.Login
+	}
+
+	return registerResponse{
+		ID:    user.ID,
+		Name:  user.Name,
+		Login: login,
+	}
 }
 
 // w — куда обработчик записывает ответ
@@ -54,4 +80,27 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		AccessToken: token,
 		TokenType:   "Bearer",
 	})
+}
+
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var request registerRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "некорректный JSON")
+		return
+	}
+
+	created, err := h.auth.Register(r.Context(), request.Name, request.Login, request.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidName), errors.Is(err, service.ErrInvalidRegistration):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, service.ErrLoginAlreadyExists):
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "внутренняя ошибка")
+		}
+		return
+	}
+
+	_ = writeJSON(w, http.StatusCreated, registrationToResponse(created))
 }
