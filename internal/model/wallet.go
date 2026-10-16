@@ -1,0 +1,6 @@
+package model
+
+type Wallet struct {
+	UserID  int64 `json:"user_id"`
+	Balance int64 `json:"balance"`
+}

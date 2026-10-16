@@ -71,6 +71,13 @@ func run() error {
 	mux.HandleFunc("GET /api/v1/users/me",
 		handler.AuthMiddleware(secret)(userHandler.Me))
 
+	walletRepo := repository.NewWalletRepository(pool)
+	walletService := service.NewWalletService(walletRepo, userRepo)
+	walletHandler := handler.NewWalletHandler(walletService)
+
+	mux.HandleFunc("GET /api/v1/users/{user_id}/wallet",
+		handler.AuthMiddleware(secret)(walletHandler.GetByUserID))
+
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: mux,
