@@ -53,3 +53,43 @@ func (r *WalletRepository) Create(ctx context.Context, userID int64) (model.Wall
 
 	return wallet, nil
 }
+func (r *WalletRepository) TopUp(ctx context.Context, userID, amount int64) (model.Wallet, int64, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return model.Wallet{}, 0, err
+	}
+	defer tx.Rollback(ctx) // если не закоммитим — откатится
+
+	const updateBalance = `
+		UPDATE public.wallets
+		SET balance = balance + $1,
+		    updated_at = now()
+		WHERE user_id = $2
+		RETURNING user_id, balance
+	`
+
+	var wallet model.Wallet
+	if err := tx.QueryRow(ctx, updateBalance, amount, userID).Scan(&wallet.UserID, &wallet.Balance); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Wallet{}, 0, ErrWalletNotFound
+		}
+		return model.Wallet{}, 0, err
+	}
+
+	const insertTx = `
+		INSERT INTO public.wallet_transactions (user_id, amount, kind)
+		VALUES ($1, $2, 'top_up')
+		RETURNING id
+	`
+
+	var transactionID int64
+	if err := tx.QueryRow(ctx, insertTx, userID, amount).Scan(&transactionID); err != nil {
+		return model.Wallet{}, 0, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return model.Wallet{}, 0, err
+	}
+
+	return wallet, transactionID, nil
+}

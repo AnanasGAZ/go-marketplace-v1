@@ -52,3 +52,38 @@ func (s *WalletService) GetByUserID(ctx context.Context, userID int64) (model.Wa
 
 	return wallet, nil
 }
+
+var (
+	ErrInvalidAmount   = errors.New("сумма должна быть больше нуля")
+	ErrBalanceOverflow = errors.New("переполнение баланса")
+)
+
+const maxBalance = int64(1) << 62 // ~4.6e18, безопасный потолок для int64
+
+func (s *WalletService) TopUp(ctx context.Context, userID, amount int64) (model.Wallet, int64, error) {
+	if amount <= 0 {
+		return model.Wallet{}, 0, ErrInvalidAmount
+	}
+
+	// Проверяем, что пользователь существует
+	if _, err := s.userRepository.GetByID(ctx, userID); err != nil {
+		// тут та же проверка, что в GetByUserID
+		return model.Wallet{}, 0, err
+	}
+
+	// Проверяем переполнение ДО обращения к БД
+	wallet, err := s.walletRepository.GetByUserID(ctx, userID)
+	if err != nil {
+		return model.Wallet{}, 0, err
+	}
+	if wallet.Balance > maxBalance-amount {
+		return model.Wallet{}, 0, ErrBalanceOverflow
+	}
+
+	updated, transactionID, err := s.walletRepository.TopUp(ctx, userID, amount)
+	if err != nil {
+		return model.Wallet{}, 0, err
+	}
+
+	return updated, transactionID, nil
+}

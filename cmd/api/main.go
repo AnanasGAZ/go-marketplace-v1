@@ -75,6 +75,9 @@ func run() error {
 	walletService := service.NewWalletService(walletRepo, userRepo)
 	walletHandler := handler.NewWalletHandler(walletService)
 
+	mux.HandleFunc("POST /api/v1/users/{user_id}/wallet/top-ups",
+		handler.AuthMiddleware(secret)(walletHandler.TopUp))
+
 	mux.HandleFunc("GET /api/v1/users/{user_id}/wallet",
 		handler.AuthMiddleware(secret)(walletHandler.GetByUserID))
 
