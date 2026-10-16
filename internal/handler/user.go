@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"go_marketplace_v1/internal/model"
 	"go_marketplace_v1/internal/service"
@@ -50,5 +51,54 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusCreated, userToResponse(created))
+	writeJSON(w, http.StatusCreated, userToResponse(created))
+}
+func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	usrIdStr := r.PathValue("user_id")
+	id, err := strconv.ParseInt(usrIdStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "некорректный user_id")
+		return
+	}
+	// -------------проверка прав ------------------
+	currentID, ok := UserIDFromCtx(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "нет пользователя в контексте")
+		return
+	}
+	if currentID != id {
+		writeError(w, http.StatusForbidden, "доступ запрещён")
+		return
+	}
+	//----------------------
+	user, err := h.users.GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "пользователь не найден")
+			return
+		}
+
+		writeError(w, http.StatusInternalServerError, "внутренняя ошибка")
+		return
+	}
+	writeJSON(w, http.StatusOK, userToResponse(user))
+}
+func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userId, ok := UserIDFromCtx(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "нет пользователя в контексте")
+		return
+	}
+
+	user, err := h.users.GetByID(r.Context(), userId)
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "пользователь не найден")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "внутренняя ошибка")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, userToResponse(user))
 }

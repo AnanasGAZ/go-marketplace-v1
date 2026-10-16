@@ -76,7 +76,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	//ответ
 	//передавать токен в заголовке Authorization: Bearer <JWT>
-	_ = writeJSON(w, http.StatusOK, loginResponse{
+	writeJSON(w, http.StatusOK, loginResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
 	})
@@ -102,5 +102,5 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusCreated, registrationToResponse(created))
+	writeJSON(w, http.StatusCreated, registrationToResponse(created))
 }

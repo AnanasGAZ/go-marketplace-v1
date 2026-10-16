@@ -3,20 +3,7 @@ import { useEffect, useState } from 'react';
 const ACCESS_TOKEN_KEY = 'access_token';
 const TOKEN_TYPE_KEY = 'token_type';
 
-async function postJSON(path, payload) {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result.message || `Запрос завершился с ошибкой (${response.status})`);
-  }
-
-  return result;
-}
+// ────────── работа с токеном ──────────
 
 function getAccessToken() {
   try {
@@ -25,6 +12,51 @@ function getAccessToken() {
     return null;
   }
 }
+
+function getTokenType() {
+  try {
+    return sessionStorage.getItem(TOKEN_TYPE_KEY) || 'Bearer';
+  } catch {
+    return 'Bearer';
+  }
+}
+
+// ────────── универсальный запрос ──────────
+
+async function request(path, { method = 'GET', body, auth = false } = {}) {
+  const headers = {};
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (auth) {
+    const token = getAccessToken();
+    if (token) {
+      headers['Authorization'] = `${getTokenType()} ${token}`;
+    }
+  }
+
+  const response = await fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      result.error ||
+      result.message ||
+      `Запрос завершился с ошибкой (${response.status})`;
+    throw new Error(message);
+  }
+
+  return result;
+}
+
+// ────────── форма входа/регистрации ──────────
 
 function AuthForm() {
   const [login, setLogin] = useState('');
@@ -43,13 +75,17 @@ function AuthForm() {
 
     try {
       if (action === 'register') {
-        await postJSON('/api/v1/auth/register', {
-          name: login,
-          ...credentials,
+        await request('/api/v1/auth/register', {
+          method: 'POST',
+          body: { name: login, ...credentials },
         });
       }
 
-      const result = await postJSON('/api/v1/auth/login', credentials);
+      const result = await request('/api/v1/auth/login', {
+        method: 'POST',
+        body: credentials,
+      });
+
       if (!result.access_token) {
         throw new Error('Сервер не вернул access token');
       }
@@ -61,11 +97,16 @@ function AuthForm() {
         throw new Error('Браузер не разрешил сохранить сессию в этой вкладке');
       }
 
-      window.location.assign(action === 'register' ? '/cabinet?showJwt=1' : '/cabinet');
+      window.location.assign(
+        action === 'register' ? '/cabinet?showJwt=1' : '/cabinet'
+      );
     } catch (error) {
       setNotice({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Не удалось выполнить запрос',
+        text:
+          error instanceof Error
+            ? error.message
+            : 'Не удалось выполнить запрос',
       });
     } finally {
       setPending(false);
@@ -108,7 +149,9 @@ function AuthForm() {
             />
           </label>
 
-          <p className="hint">При регистрации логин также используется как имя пользователя.</p>
+          <p className="hint">
+            При регистрации логин также используется как имя пользователя.
+          </p>
 
           {notice && (
             <p className={`notice ${notice.type}`} role="status" aria-live="polite">
@@ -120,18 +163,52 @@ function AuthForm() {
             <button type="submit" value="login" disabled={pending}>
               {pending ? 'Подождите…' : 'Войти'}
             </button>
-            <button className="secondary" type="submit" value="register" disabled={pending}>
+            <button
+              className="secondary"
+              type="submit"
+              value="register"
+              disabled={pending}
+            >
               Регистрация
             </button>
           </div>
         </form>
       </section>
-      <p className="footnote">После входа откроется заглушка личного кабинета.</p>
+      <p className="footnote">После входа откроется личный кабинет.</p>
     </main>
   );
 }
 
+// ────────── личный кабинет ──────────
+
 function Cabinet() {
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const me = await request('/api/v1/users/me', { auth: true });
+        if (!cancelled) setUser(me);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : 'Не удалось загрузить профиль'
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function logout() {
     try {
       sessionStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -146,23 +223,53 @@ function Cabinet() {
     <main className="screen">
       <section className="card cabinet" aria-labelledby="cabinet-title">
         <p className="eyebrow">Marketplace</p>
-        <h1 id="cabinet-title">Личный кабинет</h1>
-        <p className="intro">Вы вошли в тестовый интерфейс.</p>
-        <p className="placeholder">Тут будет личный кабинет.</p>
+
+        <h1 id="cabinet-title">
+          {loading && 'Загружаем…'}
+          {!loading && user && `Привет, ${user.name}!`}
+          {!loading && !user && 'Личный кабинет'}
+        </h1>
+
+        {error && (
+          <p className="notice error" role="status" aria-live="polite">
+            {error}
+          </p>
+        )}
+
+        {user && (
+          <>
+            <p className="intro">login: {user.login}</p>
+            <p className="intro">id: {user.id}</p>
+          </>
+        )}
+
+        {!loading && !user && !error && (
+          <p className="placeholder">Тут будет личный кабинет.</p>
+        )}
+
         {new URLSearchParams(window.location.search).get('showJwt') === '1' && (
           <section className="token-panel" aria-label="JWT после регистрации">
-            <p className="token-heading">JWT <span>временно для отладки</span></p>
+            <p className="token-heading">
+              JWT <span>временно для отладки</span>
+            </p>
             <pre className="token-value">{getAccessToken()}</pre>
           </section>
         )}
-        <button className="logout" type="button" onClick={logout}>Logout</button>
+
+        <button className="logout" type="button" onClick={logout}>
+          Logout
+        </button>
       </section>
     </main>
   );
 }
 
+// ────────── корневой компонент ──────────
+
 export default function App() {
-  const isCabinet = window.location.pathname === '/cabinet' || window.location.pathname === '/cabinet/';
+  const isCabinet =
+    window.location.pathname === '/cabinet' ||
+    window.location.pathname === '/cabinet/';
   const hasToken = Boolean(getAccessToken());
 
   useEffect(() => {

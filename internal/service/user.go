@@ -11,6 +11,7 @@ import (
 )
 
 var ErrInvalidName = errors.New("имя должно содержать от 1 до 200 символов")
+var ErrUserNotFound = errors.New("user not found")
 
 type UserService struct {
 	userRepository *repository.UserRepository
@@ -27,4 +28,7 @@ func (s *UserService) Create(ctx context.Context, name string) (model.User, erro
 	}
 
 	return s.userRepository.Create(ctx, name)
+}
+func (s *UserService) GetByID(ctx context.Context, id int64) (model.User, error) {
+	return s.userRepository.GetByID(ctx, id)
 }

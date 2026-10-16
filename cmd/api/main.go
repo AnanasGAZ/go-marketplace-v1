@@ -54,7 +54,9 @@ func run() error {
 	userService := service.NewUserService(userRepo)
 	userHandler := handler.NewUserHandler(userService)
 
-	authService, err := service.NewAuthService(userRepo, []byte(cfg.JWTSecret), cfg.JWTTokenTTL)
+	secret := []byte(cfg.JWTSecret)
+
+	authService, err := service.NewAuthService(userRepo, secret, cfg.JWTTokenTTL)
 	if err != nil {
 		return fmt.Errorf("auth: не удалось создать сервис авторизации: %w", err)
 	}
@@ -64,6 +66,10 @@ func run() error {
 	mux.HandleFunc("POST /api/v1/users", userHandler.Create)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
+	mux.HandleFunc("GET /api/v1/users/{user_id}",
+		handler.AuthMiddleware(secret)(userHandler.GetByID))
+	mux.HandleFunc("GET /api/v1/users/me",
+		handler.AuthMiddleware(secret)(userHandler.Me))
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,

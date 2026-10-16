@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log"
 
 	"go_marketplace_v1/internal/model"
 
@@ -61,6 +62,27 @@ func (r *UserRepository) GetByLogin(ctx context.Context, login string) (model.Us
 
 	var user model.User
 	if err := r.pool.QueryRow(ctx, query, login).Scan(&user.ID, &user.Login, &user.PasswordHash); err != nil {
+		return model.User{}, err
+	}
+
+	return user, nil
+}
+
+func (r *UserRepository) GetByID(ctx context.Context, id int64) (model.User, error) {
+	const query = `
+		SELECT id, name, login, password_hash
+		FROM public.users
+		WHERE id = $1
+	`
+
+	var user model.User
+	if err := r.pool.QueryRow(ctx, query, id).Scan(
+		&user.ID,
+		&user.Name,
+		&user.Login,
+		&user.PasswordHash,
+	); err != nil {
+		log.Printf("rep: ошибка user id не получил: %v", err)
 		return model.User{}, err
 	}
 
