@@ -8,12 +8,17 @@ import (
 	"strconv"
 	"strings"
 
+	"go_marketplace_v1/internal/service"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type ctxKey string
 
-const userIDKey ctxKey = "userID"
+const (
+	userIDKey   ctxKey = "userID"
+	userRoleKey ctxKey = "userRole"
+)
 
 // cGwC3QHEwc5Y
 // AuthMiddleware проверяет JWT и кладёт userID из sub в контекст запроса.
@@ -28,7 +33,7 @@ func AuthMiddleware(secret []byte) func(http.HandlerFunc) http.HandlerFunc {
 			}
 			tokenStr := strings.TrimPrefix(auth, "Bearer ")
 
-			claims := jwt.RegisteredClaims{}
+			claims := service.CustomClaims{}
 			token, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (interface{}, error) {
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, jwt.ErrSignatureInvalid
@@ -47,6 +52,7 @@ func AuthMiddleware(secret []byte) func(http.HandlerFunc) http.HandlerFunc {
 			}
 
 			ctx := context.WithValue(r.Context(), userIDKey, id)
+			ctx = context.WithValue(ctx, userRoleKey, claims.Role)
 			next(w, r.WithContext(ctx))
 		}
 	}
@@ -56,4 +62,21 @@ func AuthMiddleware(secret []byte) func(http.HandlerFunc) http.HandlerFunc {
 func UserIDFromCtx(ctx context.Context) (int64, bool) {
 	id, ok := ctx.Value(userIDKey).(int64)
 	return id, ok
+}
+func UserRoleFromCtx(ctx context.Context) (string, bool) {
+	role, ok := ctx.Value(userRoleKey).(string)
+	return role, ok
+}
+
+// проверить роль  "admin"
+func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		role, ok := UserRoleFromCtx(r.Context())
+		if !ok || role != "admin" {
+			writeError(w, http.StatusForbidden, "доступ запрещен: требуются права администратора")
+			return
+		}
+		// Если роль "admin", передаем управление следующему хэндлеру
+		next(w, r)
+	}
 }

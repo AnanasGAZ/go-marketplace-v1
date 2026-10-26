@@ -29,6 +29,18 @@ func (s *UserService) Create(ctx context.Context, name string) (model.User, erro
 
 	return s.userRepository.Create(ctx, name)
 }
+
+// func (s *UserService) GetByID(ctx context.Context, id int64) (model.User, error) {
+// 	return s.userRepository.GetByID(ctx, id)
+// }
+
 func (s *UserService) GetByID(ctx context.Context, id int64) (model.User, error) {
-	return s.userRepository.GetByID(ctx, id)
+	user, err := s.userRepository.GetByID(ctx, id)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		return model.User{}, ErrUserNotFound
+	}
+	if err != nil {
+		return model.User{}, err
+	}
+	return user, nil
 }

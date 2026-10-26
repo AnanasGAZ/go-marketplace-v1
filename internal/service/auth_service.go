@@ -32,6 +32,12 @@ type AuthService struct {
 	tokenTTL       time.Duration
 }
 
+// CustomClaims расширяет стандартные claims, добавляя роль пользователя
+type CustomClaims struct {
+	jwt.RegisteredClaims
+	Role string `json:"role"`
+}
+
 func NewAuthService(userRepository *repository.UserRepository, jwtSecret []byte, tokenTTL time.Duration) (*AuthService, error) {
 	if userRepository == nil {
 		return nil, errors.New("репозиторий пользователей не задан")
@@ -106,11 +112,21 @@ func (s *AuthService) Login(ctx context.Context, login, password string) (string
 	}
 
 	now := time.Now().UTC()
-	claims := jwt.RegisteredClaims{
-		Subject:   strconv.FormatInt(user.ID, 10),
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
+	// ИСПОЛЬЗУЕМ НАШИ КАСТОМНЫЕ CLAIMS
+	claims := CustomClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   strconv.FormatInt(user.ID, 10),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
+		},
+		Role: user.Role, // <-- ДОБАВЛЯЕМ РОЛЬ В ТОКЕН
 	}
+	fmt.Println("Роль", claims.Role)
+	// claims := jwt.RegisteredClaims{
+	// 	Subject:   strconv.FormatInt(user.ID, 10),
+	// 	IssuedAt:  jwt.NewNumericDate(now),
+	// 	ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
+	// }
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString(s.jwtSecret)

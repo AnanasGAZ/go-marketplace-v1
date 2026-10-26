@@ -5,6 +5,7 @@ type User struct {
 	Name         string
 	Login        *string
 	PasswordHash *string `json:"-"` //это правило для отправки данных наружу: когда Go превращает пользователя в JSON-ответ, поле PasswordHash пропускается. Хэш при этом остаётся в программе и базе — просто клиенту его не отправляют.
+	Role         string  `json:"role"`
 }
 
 //указатель Login *string можно оставить nil

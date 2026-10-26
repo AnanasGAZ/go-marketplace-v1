@@ -81,6 +81,25 @@ func run() error {
 	mux.HandleFunc("GET /api/v1/users/{user_id}/wallet",
 		handler.AuthMiddleware(secret)(walletHandler.GetByUserID))
 
+	productRepo := repository.NewProductRepository(pool)
+	productService := service.NewProductService(productRepo)
+	productHandler := handler.NewProductHandler(productService)
+
+	mux.HandleFunc("GET /api/v1/products", productHandler.GetAll)
+	mux.HandleFunc("GET /api/v1/products/{product_id}", productHandler.GetByID)
+
+	mux.HandleFunc("POST /api/v1/products",
+		handler.AuthMiddleware(secret)(handler.RequireAdmin(productHandler.Create)))
+
+	mux.HandleFunc("PATCH /api/v1/products/{product_id}",
+		handler.AuthMiddleware(secret)(handler.RequireAdmin(productHandler.Update)))
+
+	mux.HandleFunc("PUT /api/v1/products/{product_id}/stock",
+		handler.AuthMiddleware(secret)(handler.RequireAdmin(productHandler.SetStock)))
+
+	mux.HandleFunc("POST /api/v1/products/{product_id}/stock/add",
+		handler.AuthMiddleware(secret)(handler.RequireAdmin(productHandler.AddStock)))
+
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: mux,

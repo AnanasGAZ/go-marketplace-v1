@@ -18,7 +18,8 @@ func NewUserHandler(users *service.UserService) *UserHandler {
 }
 
 type createUserRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Password string `json:"pass"`
 }
 
 type userResponse struct {
@@ -35,6 +36,7 @@ func userToResponse(user model.User) userResponse {
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request createUserRequest
+
 	if err := decodeJSON(r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный JSON")
 		return
